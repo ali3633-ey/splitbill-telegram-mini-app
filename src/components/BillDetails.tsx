@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useBillStore } from '../store/useBillStore';
 import { useTelegram } from '../hooks/useTelegram';
-import { ReceiptUpload } from './ReceiptUpload';
+import { SimpleReceiptUpload } from './SimpleReceiptUpload';
 
 export const BillDetails = () => {
   const [totalAmount, setTotalAmount] = useState('');
@@ -12,8 +12,7 @@ export const BillDetails = () => {
   const addParticipant = useBillStore((state) => state.addParticipant);
   const removeParticipant = useBillStore((state) => state.removeParticipant);
   const calculateSplit = useBillStore((state) => state.calculateSplit);
-  const saveBill = useBillStore((state) => state.saveBill);
-  const resetCurrentBill = useBillStore((state) => state.resetCurrentBill);
+  const setScreen = useBillStore((state) => state.setScreen);
 
   const { hapticFeedback, showConfirm } = useTelegram();
 
@@ -57,13 +56,10 @@ export const BillDetails = () => {
   };
 
   const handleSaveBill = () => {
-    saveBill();
-    hapticFeedback('medium');
-    showConfirm?.('Счёт сохранён! Создать новый?', (confirmed: boolean) => {
-      if (confirmed) {
-        resetCurrentBill();
-      }
-    });
+    if (currentBill && currentBill.totalAmount > 0 && currentBill.participants.length > 0) {
+      setScreen('result');
+      hapticFeedback('medium');
+    }
   };
 
   return (
@@ -85,7 +81,7 @@ export const BillDetails = () => {
       </div>
 
       {/* Загрузка чека */}
-      <ReceiptUpload />
+      <SimpleReceiptUpload />
 
       {/* Общая сумма */}
       <div className="rounded-2xl overflow-hidden" style={{ backgroundColor: 'var(--tg-theme-section-bg-color)' }}>
@@ -243,7 +239,7 @@ export const BillDetails = () => {
               boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
             }}
           >
-            Сохранить счёт
+            Продолжить
           </button>
         </div>
       )}

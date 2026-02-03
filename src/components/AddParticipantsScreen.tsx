@@ -35,7 +35,9 @@ export const AddParticipantsScreen = () => {
 
   const handleContinue = () => {
     if ((currentBill?.participants.length || 0) >= 2) {
-      setScreen('enter-amount');
+      // В режиме детализации переходим на экран с позициями, в обычном - на ввод суммы
+      const nextScreen = currentBill?.splitMode === 'detailed' ? 'enter-amount' : 'enter-amount';
+      setScreen(nextScreen);
       hapticFeedback('light');
     }
   };

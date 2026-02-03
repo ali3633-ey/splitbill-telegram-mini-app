@@ -12,7 +12,7 @@ export const WelcomeScreen = () => {
   };
 
   return (
-    <div className="space-y-6 animate-fadeIn px-4">
+    <div className="space-y-6 animate-fadeIn px-4 pb-24">
       {/* Приветствие */}
       <div className="rounded-2xl overflow-hidden" style={{ backgroundColor: 'var(--tg-theme-section-bg-color)' }}>
         <div className="p-8 text-center">

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { BillStore, Bill, TelegramUser, AppScreen } from '../types';
+import type { BillStore, Bill, TelegramUser, AppScreen, BillItem, SplitMode, FavoritePlace } from '../types';
 // import { splitBill } from '../utils/splitBill'; // Будет использоваться позже для детального разделения
 
 export const useBillStore = create<BillStore>((set, get) => ({
@@ -7,6 +7,7 @@ export const useBillStore = create<BillStore>((set, get) => ({
   savedBills: [],
   telegramUser: null,
   currentScreen: 'welcome',
+  favoritePlaces: [],
 
   setScreen: (screen: AppScreen) => {
     set({ currentScreen: screen });
@@ -20,8 +21,34 @@ export const useBillStore = create<BillStore>((set, get) => ({
       participants: [],
       createdAt: new Date(),
       createdBy: get().telegramUser,
+      splitMode: 'equal',
     };
-    set({ currentBill: newBill, currentScreen: 'add-participants' });
+    set({ currentBill: newBill, currentScreen: 'select-mode' });
+  },
+
+  setSplitMode: (mode: SplitMode) => {
+    const { currentBill } = get();
+    if (currentBill) {
+      set({
+        currentBill: {
+          ...currentBill,
+          splitMode: mode,
+        },
+        currentScreen: 'add-participants',
+      });
+    }
+  },
+
+  setReceiptPhoto: (photo: string) => {
+    const { currentBill } = get();
+    if (currentBill) {
+      set({
+        currentBill: {
+          ...currentBill,
+          receiptPhoto: photo,
+        },
+      });
+    }
   },
 
   setTotalAmount: (amount: number) => {
@@ -43,6 +70,8 @@ export const useBillStore = create<BillStore>((set, get) => ({
       const newParticipant = {
         id: Date.now().toString(),
         name,
+        items: [],
+        totalAmount: 0,
       };
       set({
         currentBill: {
@@ -67,28 +96,83 @@ export const useBillStore = create<BillStore>((set, get) => ({
     }
   },
 
+  addItemToParticipant: (participantId: string, item: BillItem) => {
+    const { currentBill } = get();
+    if (currentBill) {
+      const updatedParticipants = currentBill.participants.map((p) => {
+        if (p.id === participantId) {
+          const newItems = [...(p.items || []), item];
+          const newTotal = newItems.reduce((sum, i) => sum + i.price, 0);
+          return { ...p, items: newItems, totalAmount: newTotal };
+        }
+        return p;
+      });
+      
+      const newTotalAmount = updatedParticipants.reduce((sum, p) => sum + (p.totalAmount || 0), 0);
+      
+      set({
+        currentBill: {
+          ...currentBill,
+          participants: updatedParticipants,
+          totalAmount: newTotalAmount,
+        },
+      });
+    }
+  },
+
+  removeItemFromParticipant: (participantId: string, itemId: string) => {
+    const { currentBill } = get();
+    if (currentBill) {
+      const updatedParticipants = currentBill.participants.map((p) => {
+        if (p.id === participantId) {
+          const newItems = (p.items || []).filter((i) => i.id !== itemId);
+          const newTotal = newItems.reduce((sum, i) => sum + i.price, 0);
+          return { ...p, items: newItems, totalAmount: newTotal };
+        }
+        return p;
+      });
+      
+      const newTotalAmount = updatedParticipants.reduce((sum, p) => sum + (p.totalAmount || 0), 0);
+      
+      set({
+        currentBill: {
+          ...currentBill,
+          participants: updatedParticipants,
+          totalAmount: newTotalAmount,
+        },
+      });
+    }
+  },
+
   calculateSplit: () => {
     const { currentBill } = get();
-    if (currentBill && currentBill.participants.length > 0 && currentBill.totalAmount > 0) {
-      // Используем чистую функцию для точного расчёта (shares можно использовать для детального отображения)
-      // const shares = splitBill(currentBill.participants, currentBill.totalAmount, 'equal');
+    if (currentBill && currentBill.participants.length > 0) {
+      // Если есть items у участников, считаем их суммы
+      const hasItems = currentBill.participants.some(p => (p.items?.length || 0) > 0);
       
-      // Вычисляем среднюю сумму для отображения
-      const amountPerPerson = currentBill.totalAmount / currentBill.participants.length;
-      
-      set({
-        currentBill: {
-          ...currentBill,
-          amountPerPerson: Math.round(amountPerPerson * 100) / 100,
-        },
-      });
-    } else if (currentBill) {
-      set({
-        currentBill: {
-          ...currentBill,
-          amountPerPerson: 0,
-        },
-      });
+      if (hasItems) {
+        // Пересчитываем totalAmount на основе items
+        const totalAmount = currentBill.participants.reduce((sum, p) => 
+          sum + (p.totalAmount || 0), 0
+        );
+        
+        set({
+          currentBill: {
+            ...currentBill,
+            totalAmount,
+          },
+        });
+      } else if (currentBill.totalAmount > 0) {
+        // Старая логика для равного разделения
+        const amountPerPerson = currentBill.totalAmount / currentBill.participants.length;
+        
+        set({
+          currentBill: {
+            ...currentBill,
+            amountPerPerson: Math.round(amountPerPerson * 100) / 100,
+          },
+        });
+      }
     }
   },
 
@@ -107,5 +191,22 @@ export const useBillStore = create<BillStore>((set, get) => ({
 
   setTelegramUser: (user: TelegramUser) => {
     set({ telegramUser: user });
+  },
+
+  addFavoritePlace: (place: Omit<FavoritePlace, 'id' | 'createdAt'>) => {
+    const newPlace: FavoritePlace = {
+      ...place,
+      id: Date.now().toString(),
+      createdAt: new Date(),
+    };
+    set((state) => ({
+      favoritePlaces: [...state.favoritePlaces, newPlace],
+    }));
+  },
+
+  removeFavoritePlace: (id: string) => {
+    set((state) => ({
+      favoritePlaces: state.favoritePlaces.filter((place) => place.id !== id),
+    }));
   },
 }));
